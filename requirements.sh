@@ -2,4 +2,4 @@
 set -e
 
 
-sudo apt install libmodbus-dev
+sudo apt-get install libmodbus-dev
