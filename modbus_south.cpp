@@ -296,6 +296,7 @@ bool	recreate = false;
 		if (doc.HasMember("values") && doc["values"].IsArray())
 		{
 			const rapidjson::Value& values = doc["values"];
+			bool slaveRegsDeleted = false; // prev m_slaveRegisters's register map is to be deleted only once during below array navigation
 			for (rapidjson::Value::ConstValueIterator itr = values.Begin();
 						itr != values.End(); ++itr)
 			{
@@ -336,6 +337,16 @@ bool	recreate = false;
 				}
 				if (itr->HasMember("register"))
 				{
+					if (slaveRegsDeleted == false)
+					{
+						slaveRegsDeleted = true;
+						Logger::getLogger()->info("registers inside values array: slaveID=%d, m_slaveRegisters[slaveID] vec size is %d, deleting.", slaveID, m_slaveRegisters[slaveID].size());
+						if (m_slaveRegisters.find(slaveID) != m_slaveRegisters.end())
+						{	for (auto & regMap : m_slaveRegisters[slaveID])
+								delete regMap;
+							m_slaveRegisters[slaveID].clear();
+						}
+					}
 					int regNo = (*itr)["register"].GetInt();
 					addRegister(slaveID, assetName, name, regNo, scale, offset);
 				}
@@ -367,6 +378,12 @@ bool	recreate = false;
 			for (rapidjson::Value::ConstMemberIterator itr = doc["registers"].MemberBegin();
 						itr != doc["registers"].MemberEnd(); ++itr)
 			{
+				Logger::getLogger()->info("registers outside values array: getDefaultSlave()=%d, m_slaveRegisters[getDefaultSlave()] vec size is %d, deleting.", getDefaultSlave(), m_slaveRegisters[getDefaultSlave()].size());
+				if (m_slaveRegisters.find(getDefaultSlave()) != m_slaveRegisters.end())
+					{	for (auto & regMap : m_slaveRegisters[getDefaultSlave()])
+							delete regMap;
+						m_slaveRegisters[getDefaultSlave()].clear();
+					}
 				addRegister(itr->name.GetString(), itr->value.GetUint());
 			}
 		}
@@ -618,6 +635,9 @@ vector<Reading *>	*values = new vector<Reading *>();
 		setSlave(it->first);
 		for (int i = 0; i < it->second.size(); i++)
 		{
+			Logger::getLogger()->info("it->first=%d, it->second[%d] = m_assetName=%s, m_name=%s, m_registerNo=%d, m_scale=%lf, m_offset=%lf", it->first, i, 
+				it->second[i]->m_assetName.c_str(), it->second[i]->m_name.c_str(), it->second[i]->m_registerNo, it->second[i]->m_scale, it->second[i]->m_offset);
+			
 			uint16_t	registerValue;
 			if (modbus_read_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
 			{
