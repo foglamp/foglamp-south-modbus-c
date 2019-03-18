@@ -296,7 +296,10 @@ bool	recreate = false;
 		if (doc.HasMember("values") && doc["values"].IsArray())
 		{
 			const rapidjson::Value& values = doc["values"];
-			bool slaveRegsDeleted = false; // prev m_slaveRegisters's register map is to be deleted only once during below array navigation
+			bool coilRegMapDeleted = false; // clear previous map only once
+			bool slaveInputRegMapDeleted = false; // clear previous map only once
+			bool slaveRegsDeleted = false; // clear previous map only once
+			bool slaveInputRegistersRegMapDeleted = false; // clear previous map only once
 			for (rapidjson::Value::ConstValueIterator itr = values.Begin();
 						itr != values.End(); ++itr)
 			{
@@ -327,22 +330,42 @@ bool	recreate = false;
 				}
 				if (itr->HasMember("coil"))
 				{
+					if (!coilRegMapDeleted)
+					{
+						coilRegMapDeleted = true;
+						if (m_slaveCoils.find(slaveID) != m_slaveCoils.end())
+						{	
+							for (auto & regMap : m_slaveCoils[slaveID])
+								delete regMap;
+							m_slaveCoils[slaveID].clear();
+						}
+					}
 					int coil = (*itr)["coil"].GetInt();
 					addCoil(slaveID, assetName, name, coil, scale, offset);
 				}
 				if (itr->HasMember("input"))
 				{
+					if (!slaveInputRegMapDeleted)
+					{
+						slaveInputRegMapDeleted = true;
+						if (m_slaveInputs.find(slaveID) != m_slaveInputs.end())
+						{	
+							for (auto & regMap : m_slaveInputs[slaveID])
+								delete regMap;
+							m_slaveInputs[slaveID].clear();
+						}
+					}
 					int input = (*itr)["input"].GetInt();
 					addInput(slaveID, assetName, name, input, scale, offset);
 				}
 				if (itr->HasMember("register"))
 				{
-					if (slaveRegsDeleted == false)
+					if (!slaveRegsDeleted)
 					{
 						slaveRegsDeleted = true;
-						Logger::getLogger()->info("registers inside values array: slaveID=%d, m_slaveRegisters[slaveID] vec size is %d, deleting.", slaveID, m_slaveRegisters[slaveID].size());
 						if (m_slaveRegisters.find(slaveID) != m_slaveRegisters.end())
-						{	for (auto & regMap : m_slaveRegisters[slaveID])
+						{	
+							for (auto & regMap : m_slaveRegisters[slaveID])
 								delete regMap;
 							m_slaveRegisters[slaveID].clear();
 						}
@@ -352,6 +375,16 @@ bool	recreate = false;
 				}
 				if (itr->HasMember("inputRegister"))
 				{
+					if (!slaveInputRegistersRegMapDeleted)
+					{
+						slaveInputRegistersRegMapDeleted = true;
+						if (m_slaveInputRegisters.find(slaveID) != m_slaveInputRegisters.end())
+						{	
+							for (auto & regMap : m_slaveInputRegisters[slaveID])
+								delete regMap;
+							m_slaveInputRegisters[slaveID].clear();
+						}
+					}
 					int regNo = (*itr)["inputRegister"].GetInt();
 					addInputRegister(slaveID, assetName, name, regNo, scale, offset);
 				}
@@ -359,6 +392,9 @@ bool	recreate = false;
 		}
 		if (doc.HasMember("coils") && doc["coils"].IsObject())
 		{
+			// RegisterMap objects inside m_coils have already been freed
+			m_coils.clear();
+			
 			for (rapidjson::Value::ConstMemberIterator itr = doc["coils"].MemberBegin();
 						itr != doc["coils"].MemberEnd(); ++itr)
 			{
@@ -367,6 +403,9 @@ bool	recreate = false;
 		}
 		if (doc.HasMember("inputs") && doc["inputs"].IsObject())
 		{
+			// RegisterMap objects inside m_inputs have already been freed
+			m_inputs.clear();
+			
 			for (rapidjson::Value::ConstMemberIterator itr = doc["inputs"].MemberBegin();
 						itr != doc["inputs"].MemberEnd(); ++itr)
 			{
@@ -375,20 +414,20 @@ bool	recreate = false;
 		}
 		if (doc.HasMember("registers") && doc["registers"].IsObject())
 		{
+			// RegisterMap objects inside m_registers have already been freed
+			m_registers.clear();
+			
 			for (rapidjson::Value::ConstMemberIterator itr = doc["registers"].MemberBegin();
 						itr != doc["registers"].MemberEnd(); ++itr)
 			{
-				Logger::getLogger()->info("registers outside values array: getDefaultSlave()=%d, m_slaveRegisters[getDefaultSlave()] vec size is %d, deleting.", getDefaultSlave(), m_slaveRegisters[getDefaultSlave()].size());
-				if (m_slaveRegisters.find(getDefaultSlave()) != m_slaveRegisters.end())
-					{	for (auto & regMap : m_slaveRegisters[getDefaultSlave()])
-							delete regMap;
-						m_slaveRegisters[getDefaultSlave()].clear();
-					}
 				addRegister(itr->name.GetString(), itr->value.GetUint());
 			}
 		}
 		if (doc.HasMember("inputRegisters") && doc["inputRegisters"].IsObject())
 		{
+			// RegisterMap objects inside m_inputRegisters have already been freed
+			m_inputRegisters.clear();
+			
 			for (rapidjson::Value::ConstMemberIterator itr = doc["inputRegisters"].MemberBegin();
 						itr != doc["inputRegisters"].MemberEnd(); ++itr)
 			{
@@ -635,9 +674,6 @@ vector<Reading *>	*values = new vector<Reading *>();
 		setSlave(it->first);
 		for (int i = 0; i < it->second.size(); i++)
 		{
-			Logger::getLogger()->info("it->first=%d, it->second[%d] = m_assetName=%s, m_name=%s, m_registerNo=%d, m_scale=%lf, m_offset=%lf", it->first, i, 
-				it->second[i]->m_assetName.c_str(), it->second[i]->m_name.c_str(), it->second[i]->m_registerNo, it->second[i]->m_scale, it->second[i]->m_offset);
-			
 			uint16_t	registerValue;
 			if (modbus_read_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
 			{
