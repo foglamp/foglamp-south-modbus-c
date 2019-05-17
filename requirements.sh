@@ -8,5 +8,6 @@ else
 	if [ $? -eq 0 ]; then
 		sudo yum -y install epel-release
 		sudo yum install -y libmodbus
+		sudo yum install -y libmodbus-devel
 	fi
 fi
